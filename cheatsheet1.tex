@@ -1,0 +1,130 @@
+\documentclass[10pt,letterpaper,twoside]{letter}
+\usepackage[latin1]{inputenc}
+\usepackage{amsmath}
+\usepackage{amsfonts}
+\usepackage{amssymb}
+\usepackage{enumitem}
+\usepackage{verbatim}
+\usepackage{multicol}
+\usepackage{nopageno}
+\usepackage[margin=0.5in]{geometry}
+\author{Russ Lankenau (rlankenau@maprtech.com)}
+\title{Pig Latin Cheatsheet}
+\begin{document}
+\begin{center}
+\textsc{\large Pig Latin Cheatsheet}
+\end{center}
+Pig Latin keywords are case-insensitive, but are often written in all caps to distinguish them from other elements.
+\begin{multicols}{2}
+\let\thefootnote\relax\footnotetext{$\dagger$Forces a reduce phase}
+\begin{description} [style=nextline]
+\item[AS] Assign a schema to a value.  The value may be a bag, a tuple, or a primitive type. 
+\begin{verbatim}
+b = LOAD 'file' AS (a:int, b:chararray);
+c = FOREACH b GENERATE $1 AS value;
+\end{verbatim}
+\item[COGROUP$\dagger$] Synonymous with GROUP, but usually used when multiple relations are used. 
+\begin{verbatim}
+c = COGROUP a BY name, b BY manager;
+\end{verbatim}
+\item[CROSS$\dagger$] Generate the cross product of two relations. 
+\begin{verbatim}
+c = CROSS a, b;
+\end{verbatim}
+\item[DEFINE] Assign an alias for a UDF or streaming command.
+\begin{verbatim}
+DEFINE myFunc com.mycompany.LongName('arg');
+\end{verbatim}
+\item[DISTINCT$\dagger$] Filter out any duplicate records in the supplied relation.
+\begin{verbatim}
+b = DISTINCT a;
+\end{verbatim}
+\item[FILTER/BY] Filter out records in a relation based on a predicate.  \begin{verbatim}
+b = FILTER a BY name == 'my_name';
+\end{verbatim}
+\item[FLATTEN] FLATTEN removes levels of nesting.  For example, flattening a tuple produces the fields contained in the tuple.  The effect is different depending on the input type.  
+\item[FOREACH/GENERATE] Generate a new relation based on records 
+\item[GROUP/BY$\dagger$] Generate a new data set grouped by the specified field.   It should be noted that the schema of the resulting data set will be \{group:name\_schema, \{source:full\_schema\}\}. \begin{verbatim}
+b = GROUP source BY name;
+\end{verbatim}
+\item[JOIN$\dagger$] Join two relations by a common field.  There are lots of ways to use JOIN depending on the expected inputs.  Check a more complete reference for details. \begin{verbatim}
+c = JOIN a BY id, b BY friend_id;
+\end{verbatim}
+\item[LOAD] The load keyword specifies a path from which to load data. The default is to load data using PigStorage(','). 
+\begin{verbatim}
+a = LOAD '/path/to/data/';
+\end{verbatim}
+\item[ORDER$\dagger$] Sort a relation by one or more fields. \begin{verbatim}
+b = ORDER a BY name;
+\end{verbatim}
+\item[REGISTER] Allow UDFs from the specified JAR file to be used.  Additional jars can also be specified on the command line by setting the pig.additional.jars property.
+\begin{verbatim}
+REGISTER 'my.jar'; 
+\end{verbatim}
+\item[SET] Set a property for the duration of the script. 
+\begin{verbatim}
+SET job.name 'My awesome job';
+\end{verbatim}
+\item[SPLIT/INTO/IF]
+Copy the elements of a relation into other relations based on a set of conditions.  Note that an element may be inserted into several of the output relations if multiple conditions are true.
+\begin{verbatim}
+SPLIT a INTO b IF name == 'my_name', 
+  c IF address MATCHES '.*Chicago, IL.*';
+\end{verbatim}
+\item[STORE/INTO] Stores a relation to the filesystem. 
+\begin{verbatim}
+STORE a INTO '/my/output/dir/';
+\end{verbatim}
+\item[TOKENIZE] Split a string into a bag containing all of the words in the string.  Tokenize is an example of an Eval function.
+\begin{verbatim}
+b = FOREACH a GENERATE TOKENIZE(a.text);
+\end{verbatim}
+\item[UNION] Combine two relations into a single relation. 
+\begin{verbatim}
+c = UNION a, b;
+\end{verbatim}
+\item[USING] Syntactic sugar for several other commands.
+\begin{verbatim}
+a = LOAD b USING PigStorage('|');
+c = JOIN a BY name, b BY name USING 'skewed';
+b = GROUP a BY name USING 'collected';
+\end{verbatim}
+\end{description}
+\end{multicols}
+\begin {description} [style=nextline]
+\item[a = LOAD '/mydata/' USING PigStorage(',') AS (name:chararray, address:chararray);] Create a relation by reading the path via PigStorage.  Each record has two fields, name and address.  Any fields beyond those defined in the schema are discarded.
+\item[b = GROUP a BY name;]
+\item[c = FOREACH b GENERATE group, COUNT(a);]  Create a new relation containing the grouping element (name) and the count of records in each group.
+\item[STORE c INTO '/myoutput/' USING JsonStorage();] Write the data out to the filesystem in JSON format.
+\end {description}
+\pagebreak
+\begin{center}
+\textsc{\large Hive Cheatsheet}
+\end{center}
+Hive allows unstructured and semi-structured data to be queried using MapReduce via a SQL-like syntax.  Since the point of using Hive is to allow those familiar with SQL to run queries without learning MapReduce programming, I won't explain all of the details of HQL here, but here are some of the higher-level concepts you might run into.
+\begin{description} 
+\item[Managed (Internal) Table] A table managed by hive.  When data is added to the table, it is moved out of the filesystem, and when the table is dropped, all data is deleted.
+\item[External Table] A table whose data is not managed by Hive, but lives in the filesystem.  Multiple external tables can refer to the same data.
+\item[Metastore] The Hive Metastore is a repository for metadata, i.e. table definitions.  The default metastore uses the Derby in-memory database, but Hive can be configured to point to any JDBC-compliant database.
+\item[Partitions] Partitions are a way of optimizing queries which commonly specify a where clause based on a certain subset of columns.  Since Hive tables are actually stored in the filesystem, partitions are implemented as directories, which reduces storage cost for the partition keys.  Partitions for external tables must be configured manually.
+\end{description}
+The Hive Metastore can be run in three distinct modes of operation, with different implications.
+\begin{description}
+\item[Embedded] In embedded mode, the client, server, and the metastore all run in the same process.  The metastore uses the Derby database to store metadata.
+\item[Local] In local mode, the client and server still run in the same process, but the metastore is a remote database.  This requires that the client have a valid JDBC connection string for the metastore, and any queries are run using the logged-in user's credentials and permissions.
+\item[Standalone/Remote] In this case the server is run in a separate process from both the client and the metastore.  This is often used when control over the metastore connection details is desired.
+\end{description}
+\begin{center}
+\textsc{\large Java Map/Reduce Cheatsheet}
+\end{center}
+Several of the interfaces and classes used in direct Java MapReduce programming are useful to developers Pig.  When the built-in storage formats and evaluation functions are not sufficient to accomplish a task, custom Java code can be easily built to integrate with Pig.  All of these classes should be assumed to be in the org.apache.hadoop.mapreduce package rather than the older org.apache.hadoop.mapred package.\footnote{Yes. This is terribly confusing.}
+\begin{description} [style=nextline]
+\item[org.apache.hadoop.mapreduce.RecordReader$<$K,V$>$] The RecordReader class takes an InputSplit and returns records.  Some examples are the LineRecordReader, which reads one line at a time, or the SequenceFileRecordReader, which reads binary sequencefiles.
+\item[org.apache.hadoop.mapreduce.InputFormat$<$K,V$>$] The InputFormat determines how the data required for a job will be returned.  This is done both by providing the list of splits to be used and the RecordReader to parse those splits into records.
+\item[org.apache.pig.LoadFunc] Each LoadFunc has an associated InputFormat (see above).  The LoadFunc's getNext() method takes each record from the RecordReader provided by its InputFormat and returns a Tuple.
+\item[org.apache.pig.LoadMetadata] This interface is optional, and among other things, returns a schema for the Tuples provided by getNext(). This allows you to use the data returned by the LoadFunc without specifing 'AS (...)'; 
+\item[org.apache.hadoop.mapreduce.RecordWriter$<$K,V$>$] Responsible for taking key/value pairs as input and writing them to the filesystem.
+\item[org.apache.hadoop.mapreduce.OutputFormat$<$K,V$>$] Responsible for providing a RecordWriter to store records.
+\item[org.apache.pig.StoreFunc] The StoreFunc and its subclasses take records from Pig and write them to the filesystem (or somewhere else).  The putNext() method is called for each Tuple.  Typically storage is done through an OutputFormat.
+\end{description}
+\end{document}
